@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"strings"
@@ -15,6 +16,14 @@ import (
 
 	cv "github.com/nirasan/go-oauth-pkce-code-verifier"
 	"github.com/sirupsen/logrus"
+)
+
+type AuthMode uint32
+
+const (
+	ModeAuthTimeOut AuthMode = 1 << (32 - 1 - iota)
+	ModeLoopBackInprocess
+	ModeLoopBackDone
 )
 
 var (
@@ -28,6 +37,9 @@ var (
 	StoreTokenErr       = errors.New("could not store access token")
 	GetAccessTokenErr   = errors.New("could not get access token")
 	GetRefreshTokenErr  = errors.New("could not get refresh token")
+
+	AuthTimeoutErr = errors.New("Auth user Timeout")
+	AuthUserState chan AuthMode
 )
 
 type AuthClient struct {
@@ -39,6 +51,7 @@ type AuthClient struct {
 	Atoken         *AuthToken
 	KeytarAccount  string
 	KeytarService  string
+	ProxyUrl       *url.URL
 }
 
 func NewAuthClient(authConfig *AuthConfig) *AuthClient {
@@ -52,12 +65,17 @@ func NewAuthClient(authConfig *AuthConfig) *AuthClient {
 		Log.Errorf("invalid current user, %v", err)
 		return nil
 	}
-	return &AuthClient{
+	a := &AuthClient{
 		WelcomeHtml:   string(html),
 		Aconfig:       authConfig,
 		KeytarAccount: user.Username,
 		KeytarService: authConfig.AuthzUri,
+		ProxyUrl:      nil,
 	}
+	if authConfig.Proxy != "" {
+		a.ProxyUrl, _ = url.Parse(authConfig.Proxy)
+	}
+	return a
 }
 func (a *AuthClient) refreshTokens() error {
 	var token AuthToken
@@ -76,6 +94,7 @@ func (a *AuthClient) refreshTokens() error {
 	client := http.Client{}
 	tr := &http.Transport{
 		//Proxy: http.ProxyURL(proxyUrl),
+		Proxy: http.ProxyURL(a.ProxyUrl),
 	}
 	client.Transport = tr
 	res, err := client.Do(req)
@@ -106,9 +125,16 @@ func (a *AuthClient) AuthorizeUser(ctx context.Context) error {
 	var err error
 	a.Aconfig.LogSetup()
 	a.Aconfig.SetPkce()
+
+	err = a.GetStoredAuthz()
+	if err != nil {
+		Log.Errorf("get stored authz failed, %s", err)
+	}
+
 	if a.Atoken != nil && a.Atoken.RefreshToken != "" {
 		err = a.refreshTokens()
 		if err == nil {
+			a.SetStoredAuthz()
 			Log.Infof("refresh token success!")
 			return nil
 		}
@@ -154,6 +180,10 @@ func (a *AuthClient) AuthorizeUser(ctx context.Context) error {
 		return err
 	}
 
+	if err == nil {
+		a.SetStoredAuthz()
+	}
+
 	return err
 }
 
@@ -188,7 +218,7 @@ func (a *AuthClient) getAccessToken(authorizationCode string) error {
 
 	client := http.Client{}
 	tr := &http.Transport{
-		//Proxy: http.ProxyURL(proxyUrl),
+		Proxy: http.ProxyURL(a.ProxyUrl),
 	}
 	client.Transport = tr
 	res, err := client.Do(req)

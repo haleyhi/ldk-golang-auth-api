@@ -1,7 +1,6 @@
 package auth_client
 
 import (
-	"io"
 	"os"
 	"strings"
 
@@ -15,7 +14,6 @@ func (a *AuthConfig) LogSetup() {
 	}
 	// Log as JSON instead of the default ASCII formatter.
 	logger.SetFormatter(&logrus.JSONFormatter{})
-	logger.SetOutput(os.Stdout)
 
 	Log = logger.WithFields(logrus.Fields{"App_name": "auth_client", "App_version": Version + "_" + Build})
 
@@ -25,8 +23,8 @@ func (a *AuthConfig) LogSetup() {
 		logger.SetLevel(logrus.DebugLevel)
 		file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err == nil {
-			mw := io.MultiWriter(os.Stdout, file)
-			logger.SetOutput(mw)
+
+			logger.SetOutput(file)
 		}
 		break
 	case "TRACE":

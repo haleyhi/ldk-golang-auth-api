@@ -26,6 +26,7 @@ type Environment struct {
 	CodeChallengeMethod string `env:"SNTL_CODE_CHALLENGE_METHOD"   default:"S256"                         required:"true"   description:"code challenge method"      long:"code-challenge-method"`
 	Scope               string `env:"SNTL_SCOPE"                   default:""                        required:"true"   description:"profile scope"              long:"scope"`
 	GrantType           string `env:"SNTL_GRANT_TYPE"              default:"authorization_code"           required:"true"   description:"grant type"                 long:"grant-type"`
+	Proxy               string `env:"SNTL_AUTH_PROXY"              default:""                             required:"false"  description:"auth proxy"                 long:"auth-proxy"`
 	StoreAuthz          bool   `env:"SNTL_STORE_AUTHZ"                                    required:"false"   description:"store authz"                long:"store-authz"`
 }
 
@@ -123,17 +124,10 @@ func main() {
 
 	AClient = auth.NewAuthClient(Config)
 	if AClient != nil {
-		if Env.StoreAuthz == true {
-			err = AClient.GetStoredAuthz()
-			if err != nil {
-				Log.Errorf("get stored authz failed, %s", err)
-			}
-		}
+
 
 		err = AClient.AuthorizeUser(context.Background())
-		if err == nil && Env.StoreAuthz == true {
-			AClient.SetStoredAuthz()
-		}
+
 
 	}
 	L = licenseApi.NewLicenseApi()

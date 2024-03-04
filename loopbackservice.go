@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	keyTar "github.com/thalesgroupsm/ldk-golang-auth-api/keytar"
 
@@ -19,8 +20,8 @@ func cleanup(server *http.Server) {
 	// the socket to the browser gets flushed/closed before the server goes away
 	go server.Close()
 }
-func (a *AuthClient) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	Log.Info("logout")
+func (a *AuthClient) Logout() {
+	defer cleanup(a.loopBackServer)
 	if a.Aconfig.StoreAuthz == false {
 		// Create a keychain
 		keychain, err := keyTar.GetKeychain()
@@ -38,10 +39,13 @@ func (a *AuthClient) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cleanup(a.loopBackServer)
 
 }
+
 func (a *AuthClient) loopBackHandler(w http.ResponseWriter, r *http.Request) {
+
+	defer func() { AuthUserState <- ModeLoopBackDone }()
+	AuthUserState <- ModeLoopBackInprocess
 	// get the authorization code
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -70,6 +74,15 @@ func (a *AuthClient) loopBackHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (a *AuthClient) AuthTimeoutThread() {
+
+	time.Sleep(time.Duration(180) * time.Second)
+	AuthUserState <- ModeAuthTimeOut
+
+}
+
+
+
 func (a *AuthClient) StartLoopbackService(authorizationURL string) error {
 	var err error
 
@@ -92,7 +105,10 @@ func (a *AuthClient) StartLoopbackService(authorizationURL string) error {
 	// start a web server to listen on a callback URL
 	a.loopBackServer = &http.Server{Addr: a.Aconfig.RedirectUri}
 	http.HandleFunc("/v1/callback", a.loopBackHandler)
-	http.HandleFunc("/logout", a.logoutHandler)
+
+	AuthUserState = make(chan AuthMode)
+	defer close(AuthUserState)
+	go a.AuthTimeoutThread()
 	// open a browser window to the authorizationURL
 	err = open.Start(authorizationURL)
 	if err != nil {
@@ -102,6 +118,22 @@ func (a *AuthClient) StartLoopbackService(authorizationURL string) error {
 
 	// start the blocking web server loop
 	// this will exit when the handler gets fired and calls server.Close()
-	a.loopBackServer.Serve(l)
-	return err
+	go a.loopBackServer.Serve(l)
+	for {
+		select {
+		case state := <-AuthUserState:
+			if state == ModeAuthTimeOut {
+				Log.Errorln("timeout: close loopback server")
+				go cleanup(a.loopBackServer)
+				err = AuthTimeoutErr
+				return err
+			} else if state == ModeLoopBackDone {
+				Log.Info("loopback done")
+				return err
+			}
+
+		}
+	}
+
+
 }

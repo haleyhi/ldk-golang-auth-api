@@ -22,6 +22,7 @@ type AuthConfig struct {
 	Port                int
 	WelcomeFileName     string
 	StoreAuthz          bool
+	Proxy               string
 }
 
 func NewAuthConfig() *AuthConfig {
