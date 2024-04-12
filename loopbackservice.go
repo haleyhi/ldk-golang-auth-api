@@ -18,7 +18,12 @@ import (
 func cleanup(server *http.Server) {
 	// we run this as a goroutine so that this function falls through and
 	// the socket to the browser gets flushed/closed before the server goes away
-	go server.Close()
+	
+	go func (){
+		if server != nil{
+			server.Close()
+		}
+	}()
 }
 func (a *AuthClient) Logout() {
 	defer cleanup(a.loopBackServer)
@@ -95,7 +100,7 @@ func (a *AuthClient) StartLoopbackService(authorizationURL string) error {
 
 	// set up a listener on the redirect port
 	port := fmt.Sprintf(":%s", u.Port())
-	l, err := net.Listen("tcp", port)
+	l, err := net.Listen("tcp", "127.0.0.1"+port)
 	if err != nil {
 		Log.Errorf("licensed application: can't listen to port %s: %s\n", port, err)
 		return err
