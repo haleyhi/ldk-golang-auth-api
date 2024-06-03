@@ -58,3 +58,14 @@ func (l *FileLock) LockWithTimeout(timeout time.Duration) error {
 func (l *FileLock) Unlock() error {
 	return l.flock.Unlock()
 }
+
+func (l *FileLock) Destroy(filename string) error {
+	l.flock.Destroy()
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		Log.Errorf("get dir error: %v", err)
+		return err
+	}
+	os.Remove(dir + "/" + filename)
+	return nil
+}

@@ -15,7 +15,7 @@ func (a *AuthConfig) LogSetup() {
 	// Log as JSON instead of the default ASCII formatter.
 	logger.SetFormatter(&logrus.JSONFormatter{})
 
-	Log = logger.WithFields(logrus.Fields{"App_name": "auth_client", "App_version": Version + "_" + Build})
+	Log = logger.WithFields(logrus.Fields{"App_name": "Authentication runtime", "App_version": a.Version })
 
 	a.LogLevel = strings.ToUpper(a.LogLevel)
 	switch a.LogLevel {

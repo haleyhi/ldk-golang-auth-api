@@ -2,6 +2,7 @@ package auth_client
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,6 @@ const (
 var (
 	logger              = logrus.New()
 	Log                 *logrus.Entry
-	Version             = "9.0.0"
 	Build               string
 	NoFreePort          = errors.New("no free port")
 	NotFoundCode        = errors.New("could not find 'code' URL parameter")
@@ -40,6 +40,7 @@ var (
 
 	AuthTimeoutErr = errors.New("Auth user Timeout")
 	AuthUserState chan AuthMode
+	stopCh        chan struct{}
 )
 
 type AuthClient struct {
@@ -75,6 +76,7 @@ func NewAuthClient(authConfig *AuthConfig) *AuthClient {
 	if authConfig.Proxy != "" {
 		a.ProxyUrl, _ = url.Parse(authConfig.Proxy)
 	}
+	a.Aconfig.LogSetup()
 	return a
 }
 func (a *AuthClient) refreshTokens() error {
@@ -90,7 +92,8 @@ func (a *AuthClient) refreshTokens() error {
 	req, _ := http.NewRequest("POST", a.Aconfig.TokenUri, payload)
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
 	req.Header.Add("Connection", "keep-alive")
-
+	basicAuth := "Basic" + base64.StdEncoding.EncodeToString([]byte(a.Aconfig.ProxyAuth))
+    req.Header.Add("Proxy-Authorization", basicAuth)
 	client := http.Client{}
 	tr := &http.Transport{
 		//Proxy: http.ProxyURL(proxyUrl),
@@ -121,14 +124,17 @@ func (a *AuthClient) refreshTokens() error {
 
 // AuthorizeUser: implements the PKCE OAuth2 flow.
 
-func (a *AuthClient) AuthorizeUser(ctx context.Context) error {
+func (a *AuthClient) AuthorizeUser(ctx context.Context, isClearFlag bool) error {
 	var err error
 	a.Aconfig.LogSetup()
 	a.Aconfig.SetPkce()
-
-	err = a.GetStoredAuthz()
-	if err != nil {
-		Log.Errorf("get stored authz failed, %s", err)
+	if isClearFlag == true {
+	    a.ClearStoredAuthz()
+	} else{
+		err = a.GetStoredAuthz()
+		if err != nil {
+			Log.Errorf("get stored authz failed, %s", err)
+		}
 	}
 
 	if a.Atoken != nil && a.Atoken.RefreshToken != "" {
@@ -215,7 +221,8 @@ func (a *AuthClient) getAccessToken(authorizationCode string) error {
 	req, _ := http.NewRequest("POST", a.Aconfig.TokenUri, payload)
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
 	req.Header.Add("Connection", "keep-alive")
-
+	basicAuth := "Basic" + base64.StdEncoding.EncodeToString([]byte(a.Aconfig.ProxyAuth))
+    req.Header.Add("Proxy-Authorization", basicAuth)
 	client := http.Client{}
 	tr := &http.Transport{
 		Proxy: http.ProxyURL(a.ProxyUrl),
@@ -299,3 +306,23 @@ func (a *AuthClient) SetStoredAuthz() (err error) {
 	return nil
 
 }
+
+func (a *AuthClient) ClearStoredAuthz() (err error) {
+	a.Aconfig.LogSetup()
+	// Create a keychain
+	keychain, err := keyTar.GetKeychain()
+	if err != nil {
+		Log.Errorf("unable to create keychain, %s", err)
+		return err
+	}
+	// clear a password
+	err = keyTar.DeletePassword(keychain, a.KeytarService, a.KeytarAccount)
+	if err != nil {
+		Log.Errorf("delete token failed")
+		return err
+	}
+
+	return nil
+
+}
+

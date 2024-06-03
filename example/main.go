@@ -120,13 +120,14 @@ func main() {
 		GrantType:           Env.GrantType,
 		LogLevel:            Env.LogLevel,
 		StoreAuthz:          Env.StoreAuthz,
+		Version:             Version + "_" + Build,
 	}
 
 	AClient = auth.NewAuthClient(Config)
 	if AClient != nil {
 
 
-		err = AClient.AuthorizeUser(context.Background())
+		err = AClient.AuthorizeUser(context.Background(), false)
 
 
 	}

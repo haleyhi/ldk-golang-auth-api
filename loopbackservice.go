@@ -49,7 +49,9 @@ func (a *AuthClient) Logout() {
 
 func (a *AuthClient) loopBackHandler(w http.ResponseWriter, r *http.Request) {
 
-	defer func() { AuthUserState <- ModeLoopBackDone }()
+	defer func() { 
+		AuthUserState <- ModeLoopBackDone 
+		close(stopCh)}()
 	AuthUserState <- ModeLoopBackInprocess
 	// get the authorization code
 	code := r.URL.Query().Get("code")
@@ -82,7 +84,19 @@ func (a *AuthClient) loopBackHandler(w http.ResponseWriter, r *http.Request) {
 func (a *AuthClient) AuthTimeoutThread() {
 
 	time.Sleep(time.Duration(180) * time.Second)
-	AuthUserState <- ModeAuthTimeOut
+    for{
+		select {
+		case <- stopCh:
+		    return
+		default:
+		}
+		select {
+		case <- stopCh:
+		    return
+		default:
+	        AuthUserState <- ModeAuthTimeOut
+		}
+	}
 
 }
 
@@ -106,14 +120,13 @@ func (a *AuthClient) StartLoopbackService(authorizationURL string) error {
 		return err
 	}
 	a.WelcomeHtml = strings.Replace(a.WelcomeHtml, ":9000", port, len(port))
-
+	AuthUserState = make(chan AuthMode)
+	stopCh = make(chan struct{})
+	go a.AuthTimeoutThread()
 	// start a web server to listen on a callback URL
 	a.loopBackServer = &http.Server{Addr: a.Aconfig.RedirectUri}
 	http.HandleFunc("/v1/callback", a.loopBackHandler)
 
-	AuthUserState = make(chan AuthMode)
-	defer close(AuthUserState)
-	go a.AuthTimeoutThread()
 	// open a browser window to the authorizationURL
 	err = open.Start(authorizationURL)
 	if err != nil {

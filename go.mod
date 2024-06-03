@@ -15,8 +15,11 @@ require (
 
 require (
 	github.com/Luzifer/go-openssl/v4 v4.2.2 // indirect
+	github.com/akavel/rsrc v0.10.2 // indirect
+	github.com/hallazzang/syso v0.0.0-20190816135029-43d74b8c1725 // indirect
 	github.com/hidez8891/shm v0.0.0-20200313135933-0ec4df5f28c7 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/zbiljic/go-filelock v0.0.0-20170914061330-1dbf7103ab7d // indirect
 	golang.org/x/crypto v0.17.0 // indirect

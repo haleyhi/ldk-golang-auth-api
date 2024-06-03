@@ -65,6 +65,16 @@ func ReplacePassword(k Keychain, service, account, newPassword string) error {
 	// Add the new password
 	return k.AddPassword(service, account, newPassword)
 }
+//DeletePassword
+func DeletePassword(k Keychain, service, account string) error {
+	// Delete the password.  We ignore errors, because the password may not
+	// exist.  Unfortunately, not every platform returns enough information via
+	// its delete call to determine the reason for failure, so we can't check
+	// that errors were ErrNotFound, but if there's a more serious problem,
+	// AddPassword should pick it up.
+	return k.DeletePassword(service, account)
+
+}
 
 // GetKeychain gets the keychain instance for the platform, which might be nil
 // if the platform is unsupported (in which case ErrUnsupported will be
